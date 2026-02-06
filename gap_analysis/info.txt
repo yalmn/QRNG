@@ -1,0 +1,2 @@
+curl "https://lfdr.de/qrng_api/qrng?length=2500&format=BINARY" -o   bin.bin (QRNG)
+generieren auf server                                               hwn.bin 
