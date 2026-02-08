@@ -9,39 +9,30 @@ def load_bits_from_file(filepath):
     with open(filepath, 'rb') as f:
         raw_data = f.read()
     
-    # Prüfen, ob es ASCII '0'/'1' ist (Bytes 48, 49)
-    # Wenn mehr als 90% der Bytes 48 oder 49 sind, ist es ASCII
     if len(raw_data) > 0 and sum(1 for b in raw_data[:100] if b in [48, 49]) > 80:
         return [1 if b == 49 else 0 for b in raw_data if b in [48, 49]]
     
-    # Ansonsten: Binäres Unpacking (8 Bits pro Byte)
     bits = []
     for byte in raw_data:
-        for i in range(7, -1, -1): # Big Endian Bit-Order
+        for i in range(7, -1, -1): 
             bits.append((byte >> i) & 1)
     return bits
 
 def calculate_goh_barabasi_metrics(bits):
     """Berechnet B und M exakt nach Forschungsnotizen."""
-    # 1. Events finden und Lücken (tau) berechnen [cite: 36, 37]
     pos = [i for i, b in enumerate(bits) if b == 1]
     if len(pos) < 5: return None
     
-    gaps = np.diff(pos) # tau_i = pos_{i+1} - pos_i 
+    gaps = np.diff(pos) 
     n = len(gaps)
     
-    # 2. Momente berechnen [cite: 45, 53, 54]
-    m1 = np.mean(gaps)                       # Erwartungswert m1
-    m2 = np.mean(np.square(gaps))            # Quadratischer Mittelwert m2
-    variance = m2 - (m1**2)                  # sigma^2 = m2 - m1^2
-    sigma = np.sqrt(variance)                # Standardabweichung
-    
-    # 3. Burstiness B [cite: 56]
-    # Formel: B = (sigma - m1) / (sigma + m1)
+    m1 = np.mean(gaps)                       
+    m2 = np.mean(np.square(gaps))            
+    variance = m2 - (m1**2)                  
+    sigma = np.sqrt(variance)                
+
     B = (sigma - m1) / (sigma + m1)
-    
-    # 4. Memory M (Goh & Barabasi Formel aus User-Prompt)
-    # M = (1/(n-1)) * Summe[ ((tau_i - m1) * (tau_i+1 - m1)) / Varianz ]
+
     if n < 2 or variance == 0:
         M = 0
     else:
@@ -56,26 +47,19 @@ def create_cloud_visual(B_list, M_list):
     sns.set_theme(style="white")
     fig, ax = plt.subplots(figsize=(12, 9), dpi=300)
 
-    # Da alle 100 Punkte fast identisch sind (B=-0.17, M=0.00),
-    # nutzen wir Jittering, um sie als "Wolke" darzustellen.
     B_jitter = np.array(B_list) + np.random.normal(0, 0.008, len(B_list))
     M_jitter = np.array(M_list) + np.random.normal(0, 0.008, len(M_list))
 
-    # 1. Dichte-Wolke im Hintergrund
     sns.kdeplot(x=B_jitter, y=M_jitter, fill=True, cmap="Blues", alpha=0.3, ax=ax, bw_adjust=1.5)
 
-    # 2. Einzelne Datenpunkte
     ax.scatter(B_jitter, M_jitter, c='royalblue', s=25, alpha=0.5, edgecolors='none', label='QRNG Samples (N=100)')
 
-    # 3. Durchschnitt (Zentroid) - Der absolute Fokuspunkt
     mean_B, mean_M = np.mean(B_list), np.mean(M_list)
     ax.scatter(mean_B, mean_M, c='darkred', marker='o', s=200, edgecolors='white', linewidth=2, 
                label=f'Zentroid (Ø B:{mean_B:.5f}, Ø M:{mean_M:.5f})', zorder=10)
 
-    # 4. Theoretisches Ideal (Poisson)
     ax.scatter(0, 0, c='black', marker='+', s=150, label='Perfekter Zufall (0,0)', zorder=11)
 
-    # Layout-Optimierung
     ax.set_xlim(-1, 1); ax.set_ylim(-1, 1)
     ax.axhline(0, color='black', lw=0.8); ax.axvline(0, color='black', lw=0.8)
     
@@ -83,7 +67,6 @@ def create_cloud_visual(B_list, M_list):
     ax.set_xlabel('Burstiness (B)', fontsize=12, labelpad=15)
     ax.set_ylabel('Memory (M)', fontsize=12, labelpad=15)
 
-    # Beschriftungsboxen (keine Überlappung mit Daten im Zentrum)
     props = dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='0.9')
     ax.text(-0.95, -0.9, "PERIODISCH / REGELMÄSSIG\n(Typisch für p=0.5)", color='darkblue', fontsize=9, bbox=props)
     ax.text(0.95, 0.9, "BURSTINESS / CLUSTERING\n(Bündelung der Bits)", color='darkred', ha='right', fontsize=9, bbox=props)
